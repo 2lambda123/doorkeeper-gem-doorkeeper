@@ -3,7 +3,7 @@
 require "spec_helper"
 
 RSpec.describe Doorkeeper::OAuth::AuthorizationCodeRequest do
-  subject do
+  subject(:request) do
     described_class.new(server, grant, client, params)
   end
 
@@ -32,66 +32,57 @@ RSpec.describe Doorkeeper::OAuth::AuthorizationCodeRequest do
 
   it "issues a new token for the client" do
     expect do
-      subject.authorize
+      request.authorize
     end.to change { client.reload.access_tokens.count }.by(1)
 
     expect(client.reload.access_tokens.max_by(&:created_at).expires_in).to eq(1234)
   end
 
   it "issues the token with same grant's scopes" do
-    subject.authorize
+    request.authorize
     expect(Doorkeeper::AccessToken.last.scopes).to eq(grant.scopes)
   end
 
   it "revokes the grant" do
-    expect { subject.authorize }.to(change { grant.reload.accessible? })
+    expect { request.authorize }.to(change { grant.reload.accessible? })
   end
 
   it "requires the grant to be accessible" do
     grant.revoke
-    subject.validate
-    expect(subject.error).to eq(:invalid_grant)
+    request.validate
+    expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
   end
 
   it "requires the grant" do
-    subject = described_class.new(server, nil, client, params)
-    subject.validate
-    expect(subject.error).to eq(:invalid_grant)
+    request = described_class.new(server, nil, client, params)
+    request.validate
+    expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
   end
 
   it "requires the client" do
-    subject = described_class.new(server, grant, nil, params)
-    subject.validate
-    expect(subject.error).to eq(:invalid_client)
+    request = described_class.new(server, grant, nil, params)
+    request.validate
+    expect(request.error).to eq(Doorkeeper::Errors::InvalidClient)
   end
 
   it "requires the redirect_uri" do
-    subject = described_class.new(server, grant, nil, params.except(:redirect_uri))
-    subject.validate
-    expect(subject.error).to eq(:invalid_request)
-    expect(subject.missing_param).to eq(:redirect_uri)
-  end
-
-  it "invalid code_verifier param because server does not support pkce" do
-    allow(Doorkeeper::AccessGrant).to receive(:pkce_supported?).and_return(false)
-    code_verifier = "a45a9fea-0676-477e-95b1-a40f72ac3cfb"
-    subject = described_class.new(server, grant, client, params.merge(code_verifier: code_verifier))
-    subject.validate
-    expect(subject.error).to eq(:invalid_request)
-    expect(subject.invalid_request_reason).to eq(:not_support_pkce)
+    request = described_class.new(server, grant, nil, params.except(:redirect_uri))
+    request.validate
+    expect(request.error).to eq(Doorkeeper::Errors::InvalidRequest)
+    expect(request.missing_param).to eq(:redirect_uri)
   end
 
   it "matches the redirect_uri with grant's one" do
-    subject = described_class.new(server, grant, client, params.merge(redirect_uri: "http://other.com"))
-    subject.validate
-    expect(subject.error).to eq(:invalid_grant)
+    request = described_class.new(server, grant, client, params.merge(redirect_uri: "http://other.com"))
+    request.validate
+    expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
   end
 
   it "matches the client with grant's one" do
     other_client = FactoryBot.create :application
-    subject = described_class.new(server, grant, other_client, params)
-    subject.validate
-    expect(subject.error).to eq(:invalid_grant)
+    request = described_class.new(server, grant, other_client, params)
+    request.validate
+    expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
   end
 
   it "skips token creation if there is a matching one reusable" do
@@ -111,7 +102,7 @@ RSpec.describe Doorkeeper::OAuth::AuthorizationCodeRequest do
       scopes: grant.scopes.to_s,
     )
 
-    expect { subject.authorize }.not_to(change { Doorkeeper::AccessToken.count })
+    expect { request.authorize }.not_to(change { Doorkeeper::AccessToken.count })
   end
 
   it "creates token if there is a matching one but non reusable" do
@@ -133,24 +124,24 @@ RSpec.describe Doorkeeper::OAuth::AuthorizationCodeRequest do
 
     allow_any_instance_of(Doorkeeper::AccessToken).to receive(:reusable?).and_return(false)
 
-    expect { subject.authorize }.to change { Doorkeeper::AccessToken.count }.by(1)
+    expect { request.authorize }.to change { Doorkeeper::AccessToken.count }.by(1)
   end
 
   it "calls configured request callback methods" do
     expect(Doorkeeper.configuration.before_successful_strategy_response)
-      .to receive(:call).with(subject).once
+      .to receive(:call).with(request).once
     expect(Doorkeeper.configuration.after_successful_strategy_response)
-      .to receive(:call).with(subject, instance_of(Doorkeeper::OAuth::TokenResponse)).once
+      .to receive(:call).with(request, instance_of(Doorkeeper::OAuth::TokenResponse)).once
 
-    subject.authorize
+    request.authorize
   end
 
   context "when redirect_uri contains some query params" do
-    let(:redirect_uri) { client.redirect_uri + "?query=q" }
+    let(:redirect_uri) { "#{client.redirect_uri}?query=q" }
 
-    it "compares only host part with grant's redirect_uri" do
-      subject.validate
-      expect(subject.error).to eq(nil)
+    it "allows query params" do
+      request.validate
+      expect(request.error).to eq(nil)
     end
   end
 
@@ -158,8 +149,8 @@ RSpec.describe Doorkeeper::OAuth::AuthorizationCodeRequest do
     let(:redirect_uri) { "123d#!s" }
 
     it "responds with invalid_grant" do
-      subject.validate
-      expect(subject.error).to eq(:invalid_grant)
+      request.validate
+      expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
     end
   end
 
@@ -167,14 +158,66 @@ RSpec.describe Doorkeeper::OAuth::AuthorizationCodeRequest do
     let(:redirect_uri) { "urn:ietf:wg:oauth:2.0:oob" }
 
     it "invalidates when redirect_uri of the grant is not native" do
-      subject.validate
-      expect(subject.error).to eq(:invalid_grant)
+      request.validate
+      expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
     end
 
     it "validates when redirect_uri of the grant is also native" do
       allow(grant).to receive(:redirect_uri) { redirect_uri }
-      subject.validate
-      expect(subject.error).to eq(nil)
+      request.validate
+      expect(request.error).to eq(nil)
+    end
+  end
+
+  context "when using PKCE params" do
+    context "when PKCE is supported" do
+      before do
+        allow(Doorkeeper::AccessGrant).to receive(:pkce_supported?).and_return(true)
+
+        grant.code_challenge = "a45a9fea-0676-477e-95b1-a40f72ac3cfb"
+        grant.code_challenge_method = "plain"
+      end
+
+      it "validates when code_verifier is present" do
+        params[:code_verifier] = grant.code_challenge
+        request.validate
+
+        expect(request.error).to eq(nil)
+      end
+
+      it "validates when both code_verifier and code_challenge are blank" do
+        params[:code_verifier] = grant.code_challenge = ""
+        request.validate
+
+        expect(request.error).to eq(nil)
+      end
+
+      it "invalidates when code_verifier is missing" do
+        request.validate
+
+        expect(request.error).to eq(Doorkeeper::Errors::InvalidRequest)
+        expect(request.missing_param).to eq(:code_verifier)
+      end
+
+      it "invalidates when code_verifier is the wrong value" do
+        params[:code_verifier] = "foobar"
+        request.validate
+
+        expect(request.error).to eq(Doorkeeper::Errors::InvalidGrant)
+      end
+    end
+
+    context "when PKCE is not supported" do
+      before do
+        allow(Doorkeeper::AccessGrant).to receive(:pkce_supported?).and_return(false)
+      end
+
+      it "validates when code_verifier is present" do
+        params[:code_verifier] = "foobar"
+        request.validate
+
+        expect(request.error).to be_nil
+      end
     end
   end
 end

@@ -4,7 +4,7 @@ require:
   - rubocop-rails
   - rubocop-rspec
 AllCops:
-  TargetRubyVersion: 2.4
+  TargetRubyVersion: 2.7
   Exclude:
     - "spec/generators/tmp/**/*"
     - "spec/dummy/db/*"
@@ -20,7 +20,6 @@ Layout/DotPosition:
 Layout/LineLength:
   Exclude:
     - spec/**/*
-  Max: 100
 Metrics/BlockLength:
   Exclude:
     - spec/**/*
@@ -29,6 +28,9 @@ Metrics/BlockLength:
 Metrics/MethodLength:
   Exclude:
     - spec/dummy/db/**/*
+Style/CaseEquality:
+  Exclude:
+    - lib/doorkeeper/grant_flow/flow.rb
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 Style/StringLiteralsInInterpolation:

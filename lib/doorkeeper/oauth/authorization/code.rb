@@ -21,6 +21,10 @@ module Doorkeeper
           { action: :show, code: token.plaintext_token }
         end
 
+        def access_grant?
+          true
+        end
+
         private
 
         def authorization_code_expires_in
@@ -41,7 +45,13 @@ module Doorkeeper
             attributes[:resource_owner_id] = resource_owner.id
           end
 
-          pkce_attributes.merge(attributes)
+          pkce_attributes.merge(attributes).merge(custom_attributes)
+        end
+
+        def custom_attributes
+          # Custom access token attributes are saved into the access grant,
+          # and then included in subsequently generated access tokens.
+          @pre_auth.custom_access_token_attributes.to_h.with_indifferent_access
         end
 
         def pkce_attributes

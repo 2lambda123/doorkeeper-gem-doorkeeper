@@ -5,19 +5,14 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
     extend ActiveSupport::Concern
 
     included do
-      self.table_name = "#{table_name_prefix}oauth_access_grants#{table_name_suffix}"
+      self.table_name = compute_doorkeeper_table_name
+      self.strict_loading_by_default = false if respond_to?(:strict_loading_by_default)
 
       include ::Doorkeeper::AccessGrantMixin
 
       belongs_to :application, class_name: Doorkeeper.config.application_class.to_s,
                                optional: true,
                                inverse_of: :access_grants
-
-      if Doorkeeper.config.polymorphic_resource_owner?
-        belongs_to :resource_owner, polymorphic: true, optional: false
-      else
-        validates :resource_owner_id, presence: true
-      end
 
       validates :application_id,
                 :token,
@@ -52,6 +47,16 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
       def generate_token
         @raw_token = Doorkeeper::OAuth::Helpers::UniqueToken.generate
         secret_strategy.store_secret(self, :token, @raw_token)
+      end
+    end
+
+    module ClassMethods
+      private
+
+      def compute_doorkeeper_table_name
+        table_name = "oauth_access_grant"
+        table_name = table_name.pluralize if pluralize_table_names
+        "#{table_name_prefix}#{table_name}#{table_name_suffix}"
       end
     end
   end

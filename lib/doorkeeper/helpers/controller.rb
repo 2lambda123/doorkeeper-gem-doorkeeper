@@ -16,6 +16,8 @@ module Doorkeeper
 
       # :doc:
       def current_resource_owner
+        return @current_resource_owner if defined?(@current_resource_owner)
+
         @current_resource_owner ||= begin
           instance_eval(&Doorkeeper.config.authenticate_resource_owner)
         end
@@ -36,6 +38,8 @@ module Doorkeeper
 
       # :doc:
       def doorkeeper_token
+        return @doorkeeper_token if defined?(@doorkeeper_token)
+
         @doorkeeper_token ||= OAuth::Token.authenticate(request, *config_methods)
       end
 
@@ -78,7 +82,7 @@ module Doorkeeper
       end
 
       def x_www_form_urlencoded?
-        request.content_type == "application/x-www-form-urlencoded"
+        request.media_type == "application/x-www-form-urlencoded"
       end
     end
   end

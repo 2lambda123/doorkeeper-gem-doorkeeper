@@ -5,7 +5,8 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
     extend ActiveSupport::Concern
 
     included do
-      self.table_name = "#{table_name_prefix}oauth_applications#{table_name_suffix}"
+      self.table_name = compute_doorkeeper_table_name
+      self.strict_loading_by_default = false if respond_to?(:strict_loading_by_default)
 
       include ::Doorkeeper::ApplicationMixin
 
@@ -21,7 +22,7 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
 
       validates :name, :secret, :uid, presence: true
       validates :uid, uniqueness: { case_sensitive: true }
-      validates :redirect_uri, "doorkeeper/redirect_uri": true
+      validates_with Doorkeeper::RedirectUriValidator, attributes: [:redirect_uri]
       validates :confidential, inclusion: { in: [true, false] }
 
       validate :scopes_match_configured, if: :enforce_scopes?
@@ -43,7 +44,7 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
       # @return [String] new transformed secret value
       #
       def renew_secret
-        @raw_secret = Doorkeeper::OAuth::Helpers::UniqueToken.generate
+        @raw_secret = secret_generator.generate
         secret_strategy.store_secret(self, :secret, @raw_secret)
       end
 
@@ -101,6 +102,17 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
 
       private
 
+      def secret_generator
+        generator_name = Doorkeeper.config.application_secret_generator
+        generator = generator_name.constantize
+
+        return generator if generator.respond_to?(:generate)
+
+        raise Errors::UnableToGenerateToken, "#{generator} does not respond to `.generate`."
+      rescue NameError
+        raise Errors::TokenGeneratorNotFound, "#{generator_name} not found"
+      end
+
       def generate_uid
         self.uid = Doorkeeper::OAuth::Helpers::UniqueToken.generate if uid.blank?
       end
@@ -137,9 +149,9 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
         only = Array.wrap(opts[:only]).map(&:to_s)
 
         only = if only.blank?
-                 serializable_attributes
+                 client_serializable_attributes
                else
-                 only & serializable_attributes
+                 only & client_serializable_attributes
                end
 
         only -= Array.wrap(opts[:except]).map(&:to_s) if opts.key?(:except)
@@ -150,7 +162,10 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
       # Override this method if you need additional attributes to be serialized.
       #
       # @return [Array<String>] collection of serializable attributes
-      def serializable_attributes
+      #
+      # NOTE: `serializable_attributes` method already taken by Rails >= 6
+      #
+      def client_serializable_attributes
         attributes = %w[id name created_at]
         attributes << "uid" unless confidential?
         attributes
@@ -181,6 +196,14 @@ module Doorkeeper::Orm::ActiveRecord::Mixins
       def revoke_tokens_and_grants_for(id, resource_owner)
         Doorkeeper.config.access_token_model.revoke_all_for(id, resource_owner)
         Doorkeeper.config.access_grant_model.revoke_all_for(id, resource_owner)
+      end
+
+      private
+
+      def compute_doorkeeper_table_name
+        table_name = "oauth_application"
+        table_name = table_name.pluralize if pluralize_table_names
+        "#{table_name_prefix}#{table_name}#{table_name_suffix}"
       end
     end
   end

@@ -4,8 +4,10 @@ module Doorkeeper
   module OAuth
     # RFC7662 OAuth 2.0 Token Introspection
     #
-    # @see https://tools.ietf.org/html/rfc7662
+    # @see https://datatracker.ietf.org/doc/html/rfc7662
     class TokenIntrospection
+      attr_reader :error
+
       def initialize(server, token)
         @server = server
         @token = token
@@ -20,12 +22,12 @@ module Doorkeeper
       def error_response
         return if @error.blank?
 
-        if @error == :invalid_token
+        if @error == Errors::InvalidToken
           OAuth::InvalidTokenResponse.from_access_token(authorized_token)
-        elsif @error == :invalid_request
+        elsif @error == Errors::InvalidRequest
           OAuth::InvalidRequestResponse.from_request(self)
         else
-          OAuth::ErrorResponse.new(name: @error)
+          OAuth::ErrorResponse.from_request(self)
         end
       end
 
@@ -36,7 +38,7 @@ module Doorkeeper
       private
 
       attr_reader :server, :token
-      attr_reader :error, :invalid_request_reason
+      attr_reader :invalid_request_reason
 
       # If the protected resource uses OAuth 2.0 client credentials to
       # authenticate to the introspection endpoint and its credentials are
@@ -58,7 +60,7 @@ module Doorkeeper
       def authorize!
         # Requested client authorization
         if server.credentials
-          @error = :invalid_client unless authorized_client
+          @error = Errors::InvalidClient unless authorized_client
         elsif authorized_token
           # Requested bearer token authorization
           #
@@ -69,9 +71,9 @@ module Doorkeeper
           #  HTTP 401 code as described in Section 3 of OAuth 2.0 Bearer Token
           #  Usage [RFC6750].
           #
-          @error = :invalid_token unless valid_authorized_token?
+          @error = Errors::InvalidToken unless valid_authorized_token?
         else
-          @error = :invalid_request
+          @error = Errors::InvalidRequest
           @invalid_request_reason = :request_not_authorized
         end
       end
@@ -107,7 +109,7 @@ module Doorkeeper
       # authorization server SHOULD NOT include any additional information
       # about an inactive token, including why the token is inactive.
       #
-      # @see https://tools.ietf.org/html/rfc7662 2.2. Introspection Response
+      # @see https://datatracker.ietf.org/doc/html/rfc7662 2.2. Introspection Response
       #
       def failure_response
         {
@@ -134,7 +136,7 @@ module Doorkeeper
       # Since resource servers using token introspection rely on the
       # authorization server to determine the state of a token, the
       # authorization server MUST perform all applicable checks against a
-      # token's state.  For instance, these tests include the following:
+      # token's state. For instance, these tests include the following:
       #
       #    o  If the token can expire, the authorization server MUST determine
       #       whether or not the token has expired.
@@ -186,7 +188,7 @@ module Doorkeeper
       # Provides context (controller) and token for generating developer-specific
       # response.
       #
-      # @see https://tools.ietf.org/html/rfc7662#section-2.2
+      # @see https://datatracker.ietf.org/doc/html/rfc7662#section-2.2
       #
       def customize_response(response)
         customized_response = Doorkeeper.config.custom_introspection_response.call(

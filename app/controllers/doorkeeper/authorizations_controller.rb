@@ -13,18 +13,26 @@ module Doorkeeper
     end
 
     def create
-      redirect_or_render authorize_response
+      redirect_or_render(authorize_response)
     end
 
     def destroy
-      redirect_or_render authorization.deny
+      redirect_or_render(authorization.deny)
+    rescue Doorkeeper::Errors::InvalidTokenStrategy => e
+      error_response = get_error_response_from_exception(e)
+
+      if Doorkeeper.configuration.api_only
+        render json: error_response.body, status: :bad_request
+      else
+        render :error, locals: { error_response: error_response }
+      end
     end
 
     private
 
     def render_success
-      if skip_authorization? || matching_token?
-        redirect_or_render authorize_response
+      if skip_authorization? || (matching_token? && pre_auth.client.application.confidential?)
+        redirect_or_render(authorize_response)
       elsif Doorkeeper.configuration.api_only
         render json: pre_auth
       else
@@ -33,14 +41,19 @@ module Doorkeeper
     end
 
     def render_error
-      if Doorkeeper.configuration.api_only
-        render json: pre_auth.error_response.body,
-               status: :bad_request
+      pre_auth.error_response.raise_exception! if Doorkeeper.config.raise_on_errors?
+
+      if Doorkeeper.configuration.redirect_on_errors? && pre_auth.error_response.redirectable?
+        redirect_or_render(pre_auth.error_response)
+      elsif Doorkeeper.configuration.api_only
+        render json: pre_auth.error_response.body, status: pre_auth.error_response.status
       else
-        render :error
+        render :error, locals: { error_response: pre_auth.error_response }, status: pre_auth.error_response.status
       end
     end
 
+    # Active access token issued for the same client and resource owner with
+    # the same set of the scopes exists?
     def matching_token?
       Doorkeeper.config.access_token_model.matching_token_for(
         pre_auth.client,
@@ -52,12 +65,21 @@ module Doorkeeper
     def redirect_or_render(auth)
       if auth.redirectable?
         if Doorkeeper.configuration.api_only
-          render(
-            json: { status: :redirect, redirect_uri: auth.redirect_uri },
-            status: auth.status,
-          )
+          if pre_auth.form_post_response?
+            render(
+              json: { status: :post, redirect_uri: pre_auth.redirect_uri, body: auth.body },
+              status: auth.status,
+            )
+          else
+            render(
+              json: { status: :redirect, redirect_uri: auth.redirect_uri },
+              status: auth.status,
+            )
+          end
+        elsif pre_auth.form_post_response?
+          render :form_post
         else
-          redirect_to auth.redirect_uri
+          redirect_to auth.redirect_uri, allow_other_host: true
         end
       else
         render json: auth.body, status: auth.status
@@ -77,15 +99,20 @@ module Doorkeeper
     end
 
     def pre_auth_param_fields
-      %i[
+      custom_access_token_attributes + %i[
         client_id
         code_challenge
         code_challenge_method
         response_type
+        response_mode
         redirect_uri
         scope
         state
       ]
+    end
+
+    def custom_access_token_attributes
+      Doorkeeper.config.custom_access_token_attributes.map(&:to_sym)
     end
 
     def authorization

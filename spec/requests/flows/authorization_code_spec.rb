@@ -156,7 +156,8 @@ feature "Authorization Code Flow" do
 
     authorization_code = Doorkeeper::AccessGrant.first.token
     page.driver.post token_endpoint_url(
-      code: authorization_code, client_id: @client.uid,
+      code: authorization_code,
+      client_id: @client.uid,
       redirect_uri: @client.redirect_uri,
     )
 
@@ -174,7 +175,8 @@ feature "Authorization Code Flow" do
 
     authorization_code = Doorkeeper::AccessGrant.first.token
     page.driver.post token_endpoint_url(
-      code: authorization_code, client_secret: @client.secret,
+      code: authorization_code,
+      client_secret: @client.secret,
       redirect_uri: @client.redirect_uri,
     )
 
@@ -186,11 +188,11 @@ feature "Authorization Code Flow" do
     )
   end
 
-  scenario "silently authorizes if matching token exists" do
+  scenario "silently authorizes if active matching token exists" do
     default_scopes_exist :public, :write
 
     access_token_exists application: @client,
-                        expires_in: -100, # even expired token
+                        expires_in: 10_000,
                         resource_owner_id: @resource_owner.id,
                         resource_owner_type: @resource_owner.class.name,
                         scopes: "public write"
@@ -223,13 +225,7 @@ feature "Authorization Code Flow" do
         visit authorization_endpoint_url(client: @client)
         click_on "Authorize"
 
-        authorization_code = current_params["code"]
-        create_access_token authorization_code, @client, code_verifier
-
-        expect(json_response).to match(
-          "error" => "invalid_grant",
-          "error_description" => translated_error_message(:invalid_grant),
-        )
+        url_should_have_param("code", Doorkeeper::AccessGrant.first.token)
       end
 
       scenario "mobile app requests an access token with authorization code and plain code challenge method" do
@@ -445,7 +441,7 @@ feature "Authorization Code Flow" do
     scenario "scope is invalid because default scope is different from application scope" do
       default_scopes_exist :admin
       visit authorization_endpoint_url(client: @client)
-      response_status_should_be 200
+      response_status_should_be 400
       i_should_not_see "Authorize"
       i_should_see_translated_error_message :invalid_scope
     end
@@ -554,6 +550,33 @@ feature "Authorization Code Flow" do
           "error_description" => translated_error_message(:invalid_grant),
         )
       end
+    end
+  end
+
+  context "when custom_access_token_attributes are configured" do
+    let(:resource_owner) { FactoryBot.create(:resource_owner) }
+    let(:client) { client_exists }
+    let(:grant) do
+      authorization_code_exists(
+         application: client,
+         resource_owner_id: resource_owner.id,
+         resource_owner_type: resource_owner.class.name,
+         tenant_name: "Tenant 1",
+       )
+    end
+
+    before do
+      Doorkeeper.configure do
+        orm DOORKEEPER_ORM
+        custom_access_token_attributes [:tenant_name]
+      end
+    end
+
+    it "copies custom attributes from the grant into the token" do
+      page.driver.post token_endpoint_url(code: grant.token, client: client)
+
+      access_token = Doorkeeper::AccessToken.find_by(token: json_response["access_token"])
+      expect(access_token.tenant_name).to eq("Tenant 1")
     end
   end
 end

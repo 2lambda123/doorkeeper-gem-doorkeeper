@@ -3,12 +3,14 @@
 require "spec_helper"
 
 RSpec.describe Doorkeeper::OAuth::InvalidRequestResponse do
+  subject(:response) { described_class.new }
+
   describe "#name" do
-    it { expect(subject.name).to eq(:invalid_request) }
+    it { expect(response.name).to eq(:invalid_request) }
   end
 
   describe "#status" do
-    it { expect(subject.status).to eq(:bad_request) }
+    it { expect(response.status).to eq(:bad_request) }
   end
 
   describe ".from_request" do
@@ -25,20 +27,6 @@ RSpec.describe Doorkeeper::OAuth::InvalidRequestResponse do
 
       it "sets the reason" do
         expect(response.reason).to eq(:missing_param)
-      end
-    end
-
-    context "when server doesn't support PKCE" do
-      let(:request) { double(invalid_request_reason: :not_support_pkce) }
-
-      it "sets a description" do
-        expect(response.description).to eq(
-          I18n.t(:not_support_pkce, scope: %i[doorkeeper errors messages invalid_request]),
-        )
-      end
-
-      it "sets the reason" do
-        expect(response.reason).to eq(:not_support_pkce)
       end
     end
 
@@ -68,6 +56,20 @@ RSpec.describe Doorkeeper::OAuth::InvalidRequestResponse do
       it "sets the reason to unknown" do
         expect(response.reason).to eq(:unknown_reason)
       end
+    end
+  end
+
+  describe ".redirectable?" do
+    it "not redirectable when missing_param is client_id" do
+      subject = described_class.new(missing_param: :client_id)
+
+      expect(subject.redirectable?).to be false
+    end
+
+    it "is redirectable when missing_param is other than client_id" do
+      subject = described_class.new(missing_param: :code_verifier)
+
+      expect(subject.redirectable?).to be true
     end
   end
 end

@@ -39,13 +39,31 @@ module Doorkeeper
       def initialize(response)
         @response = response
       end
+
+      def self.name_for_response
+        self.name.demodulize.underscore.to_sym
+      end
     end
 
     UnableToGenerateToken = Class.new(DoorkeeperError)
     TokenGeneratorNotFound = Class.new(DoorkeeperError)
     NoOrmCleaner = Class.new(DoorkeeperError)
 
+    InvalidRequest = Class.new(BaseResponseError)
     InvalidToken = Class.new(BaseResponseError)
+    InvalidClient = Class.new(BaseResponseError)
+    InvalidScope = Class.new(BaseResponseError)
+    InvalidRedirectUri = Class.new(BaseResponseError)
+    InvalidCodeChallengeMethod = Class.new(BaseResponseError)
+    InvalidGrant = Class.new(BaseResponseError)
+
+    UnauthorizedClient = Class.new(BaseResponseError)
+    UnsupportedResponseType = Class.new(BaseResponseError)
+    UnsupportedResponseMode = Class.new(BaseResponseError)
+
+    AccessDenied = Class.new(BaseResponseError)
+    ServerError = Class.new(BaseResponseError)
+
     TokenExpired = Class.new(InvalidToken)
     TokenRevoked = Class.new(InvalidToken)
     TokenUnknown = Class.new(InvalidToken)

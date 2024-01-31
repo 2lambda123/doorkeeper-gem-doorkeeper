@@ -2,6 +2,8 @@
 
 module Doorkeeper
   class TokensController < Doorkeeper::ApplicationMetalController
+    before_action :validate_presence_of_client, only: [:revoke]
+
     def create
       headers.merge!(authorize_response.headers)
       render json: authorize_response.body,
@@ -10,34 +12,8 @@ module Doorkeeper
       handle_token_exception(e)
     end
 
-    # OAuth 2.0 Token Revocation - http://tools.ietf.org/html/rfc7009
+    # OAuth 2.0 Token Revocation - https://datatracker.ietf.org/doc/html/rfc7009
     def revoke
-      # @see 2.1.  Revocation Request
-      #
-      #  The client constructs the request by including the following
-      #  parameters using the "application/x-www-form-urlencoded" format in
-      #  the HTTP request entity-body:
-      #     token   REQUIRED.
-      #     token_type_hint  OPTIONAL.
-      #
-      #  The client also includes its authentication credentials as described
-      #  in Section 2.3. of [RFC6749].
-      #
-      #  The authorization server first validates the client credentials (in
-      #  case of a confidential client) and then verifies whether the token
-      #  was issued to the client making the revocation request.
-      unless server.client
-        # If this validation [client credentials / token ownership] fails, the request is
-        # refused and the  client is informed of the error by the authorization server as
-        # described below.
-        #
-        # @see 2.2.1.  Error Response
-        #
-        # The error presentation conforms to the definition in Section 5.2 of [RFC6749].
-        render json: revocation_error_response, status: :forbidden
-        return
-      end
-
       # The authorization server responds with HTTP status code 200 if the client
       # submitted an invalid token or the token has been revoked successfully.
       if token.blank?
@@ -54,6 +30,7 @@ module Doorkeeper
       end
     end
 
+    # OAuth 2.0 Token Introspection - https://datatracker.ietf.org/doc/html/rfc7662
     def introspect
       introspection = OAuth::TokenIntrospection.new(server, token)
 
@@ -68,7 +45,39 @@ module Doorkeeper
 
     private
 
+    def validate_presence_of_client
+      return if Doorkeeper.config.skip_client_authentication_for_password_grant
+
+      # @see 2.1.  Revocation Request
+      #
+      #  The client constructs the request by including the following
+      #  parameters using the "application/x-www-form-urlencoded" format in
+      #  the HTTP request entity-body:
+      #     token   REQUIRED.
+      #     token_type_hint  OPTIONAL.
+      #
+      #  The client also includes its authentication credentials as described
+      #  in Section 2.3. of [RFC6749].
+      #
+      #  The authorization server first validates the client credentials (in
+      #  case of a confidential client) and then verifies whether the token
+      #  was issued to the client making the revocation request.
+      return if server.client
+
+      # If this validation [client credentials / token ownership] fails, the request is
+      # refused and the  client is informed of the error by the authorization server as
+      # described below.
+      #
+      # @see 2.2.1.  Error Response
+      #
+      # The error presentation conforms to the definition in Section 5.2 of [RFC6749].
+      render json: revocation_error_response, status: :forbidden
+    end
+
     # OAuth 2.0 Section 2.1 defines two client types, "public" & "confidential".
+    #
+    # RFC7009
+    # Section 5. Security Considerations
     # A malicious client may attempt to guess valid tokens on this endpoint
     # by making revocation requests against potential token strings.
     # According to this specification, a client's request must contain a
@@ -86,8 +95,8 @@ module Doorkeeper
     # types, they set the application_id as null (since the claim cannot be
     # verified).
     #
-    # https://tools.ietf.org/html/rfc6749#section-2.1
-    # https://tools.ietf.org/html/rfc7009
+    # https://datatracker.ietf.org/doc/html/rfc6749#section-2.1
+    # https://datatracker.ietf.org/doc/html/rfc7009
     def authorized?
       # Token belongs to specific client, so we need to check if
       # authenticated client could access it.
@@ -107,12 +116,14 @@ module Doorkeeper
       token.revoke if token&.accessible?
     end
 
-    # Doorkeeper does not use the token_type_hint logic described in the
-    # RFC 7009 due to the refresh token implementation that is a field in
-    # the access token model.
     def token
-      @token ||= Doorkeeper.config.access_token_model.by_token(params["token"]) ||
-                 Doorkeeper.config.access_token_model.by_refresh_token(params["token"])
+      @token ||=
+        if params[:token_type_hint] == "refresh_token"
+          Doorkeeper.config.access_token_model.by_refresh_token(params["token"])
+        else
+          Doorkeeper.config.access_token_model.by_token(params["token"]) ||
+            Doorkeeper.config.access_token_model.by_refresh_token(params["token"])
+        end
     end
 
     def strategy

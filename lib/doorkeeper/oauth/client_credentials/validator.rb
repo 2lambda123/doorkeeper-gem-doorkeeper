@@ -7,9 +7,9 @@ module Doorkeeper
         include Validations
         include OAuth::Helpers
 
-        validate :client, error: :invalid_client
-        validate :client_supports_grant_flow, error: :unauthorized_client
-        validate :scopes, error: :invalid_scope
+        validate :client, error: Errors::InvalidClient
+        validate :client_supports_grant_flow, error: Errors::UnauthorizedClient
+        validate :scopes, error: Errors::InvalidScope
 
         def initialize(server, request)
           @server = server
@@ -35,13 +35,12 @@ module Doorkeeper
         end
 
         def validate_scopes
-          return true if @request.scopes.blank?
-
           application_scopes = if @client.present?
                                  @client.application.scopes
                                else
                                  ""
                                end
+          return true if @request.scopes.blank? && application_scopes.blank?
 
           ScopeChecker.valid?(
             scope_str: @request.scopes.to_s,

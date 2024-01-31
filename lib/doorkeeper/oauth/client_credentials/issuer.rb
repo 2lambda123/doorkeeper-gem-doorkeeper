@@ -11,10 +11,10 @@ module Doorkeeper
           @validator = validator
         end
 
-        def create(client, scopes, creator = Creator.new)
+        def create(client, scopes, attributes = {}, creator = Creator.new)
           if validator.valid?
-            @token = create_token(client, scopes, creator)
-            @error = :server_error unless @token
+            @token = create_token(client, scopes, attributes, creator)
+            @error = Errors::ServerError unless @token
           else
             @token = false
             @error = validator.error
@@ -25,11 +25,12 @@ module Doorkeeper
 
         private
 
-        def create_token(client, scopes, creator)
+        def create_token(client, scopes, attributes, creator)
           context = Authorization::Token.build_context(
             client,
             Doorkeeper::OAuth::CLIENT_CREDENTIALS,
             scopes,
+            nil,
           )
           ttl = Authorization::Token.access_token_expires_in(@server, context)
 
@@ -38,6 +39,7 @@ module Doorkeeper
             scopes,
             use_refresh_token: false,
             expires_in: ttl,
+            **attributes
           )
         end
       end

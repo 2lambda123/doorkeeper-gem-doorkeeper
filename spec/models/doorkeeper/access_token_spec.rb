@@ -3,9 +3,9 @@
 require "spec_helper"
 
 RSpec.describe Doorkeeper::AccessToken do
-  subject { FactoryBot.build(:access_token) }
+  subject(:access_token) { FactoryBot.build(:access_token) }
 
-  it { expect(subject).to be_valid }
+  it { expect(access_token).to be_valid }
 
   it_behaves_like "an accessible token"
   it_behaves_like "a revocable token"
@@ -206,6 +206,23 @@ RSpec.describe Doorkeeper::AccessToken do
       expect(token.token).to eq "custom_generator_token_#{created_at.to_i}"
     end
 
+    it "allows the custom generator to access the custom attributes" do
+      module CustomGeneratorArgs
+        def self.generate(opts = {})
+          "custom_generator_token_#{opts[:tenant_name]}"
+        end
+      end
+
+      Doorkeeper.configure do
+        orm DOORKEEPER_ORM
+        access_token_generator "CustomGeneratorArgs"
+        custom_access_token_attributes [:tenant_name]
+      end
+
+      token = FactoryBot.create :access_token, tenant_name: "Tenant 1"
+      expect(token.token).to eq "custom_generator_token_Tenant 1"
+    end
+
     it "raises an error if the custom object does not support generate" do
       module NoGenerate
       end
@@ -361,14 +378,14 @@ RSpec.describe Doorkeeper::AccessToken do
   describe "validations" do
     it "is valid without resource_owner_id" do
       # For client credentials flow
-      subject.resource_owner_id = nil
-      expect(subject).to be_valid
+      access_token.resource_owner_id = nil
+      expect(access_token).to be_valid
     end
 
     it "is valid without application_id" do
       # For resource owner credentials flow
-      subject.application_id = nil
-      expect(subject).to be_valid
+      access_token.application_id = nil
+      expect(access_token).to be_valid
     end
   end
 
@@ -478,7 +495,7 @@ RSpec.describe Doorkeeper::AccessToken do
 
     it "revokes all tokens for given application and resource owner" do
       FactoryBot.create :access_token, default_attributes
-      described_class.revoke_all_for application.id, resource_owner
+      described_class.revoke_all_for(application.id, resource_owner)
       expect(described_class.all).to all(be_revoked)
     end
 
@@ -488,7 +505,7 @@ RSpec.describe Doorkeeper::AccessToken do
         default_attributes.merge(application: FactoryBot.create(:application)),
       )
 
-      described_class.revoke_all_for application.id, resource_owner
+      described_class.revoke_all_for(application.id, resource_owner)
 
       expect(access_token_for_different_app.reload).not_to be_revoked
     end
@@ -499,7 +516,7 @@ RSpec.describe Doorkeeper::AccessToken do
         default_attributes.merge(resource_owner_id: resource_owner.id + 1),
       )
 
-      described_class.revoke_all_for application.id, resource_owner
+      described_class.revoke_all_for(application.id, resource_owner)
 
       expect(access_token_for_different_owner.reload).not_to be_revoked
     end
@@ -639,6 +656,35 @@ RSpec.describe Doorkeeper::AccessToken do
       end
 
       expect(token.as_json).to match(hash)
+    end
+
+    describe "#not_expired" do
+      let(:resource_owner) { FactoryBot.create(:doorkeeper_testing_user) }
+      let(:application) { FactoryBot.create(:application) }
+
+      let(:attrs) { { resource_owner_id: resource_owner.id, application_id: application.id } }
+
+      let!(:active_token1) { FactoryBot.create(:access_token, attrs.merge(expires_in: 2000)) }
+      let!(:active_token2) { FactoryBot.create(:access_token, attrs.merge(expires_in: 2)) }
+      let!(:active_token3) { FactoryBot.create(:access_token, attrs.merge(expires_in: 10, created_at: Time.current - 5.seconds)) }
+      let!(:active_token4) { FactoryBot.create(:access_token, attrs.merge(expires_in: nil)) }
+      let!(:not_active_token1) { FactoryBot.create(:access_token, attrs.merge(expires_in: 2, created_at: Time.current - 2.seconds)) }
+      let!(:not_active_token2) { FactoryBot.create(:access_token, attrs.merge(expires_in: 10, created_at: Time.current - 12.seconds)) }
+      let!(:not_active_token3) { FactoryBot.create(:access_token, attrs.merge(expires_in: 10_000, revoked_at: Time.current)) }
+
+      before do
+        Timecop.freeze(Time.current)
+      end
+
+      after do
+        Timecop.return
+      end
+
+      it "returns only non expired tokens" do
+        expired_tokens = described_class.not_expired
+        expect(expired_tokens.size).to be(4)
+        expect(expired_tokens).to match_array([active_token1, active_token2, active_token3, active_token4])
+      end
     end
   end
 end

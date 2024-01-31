@@ -5,9 +5,151 @@ upgrade guides.
 
 User-visible changes worth mentioning.
 
-## master
+## main
 
-- [#PR ID] Your PR description.
+- [#PR ID] Add your changelog here.
+
+## 5.6.8
+
+- [#1680] Fix handle_auth_errors :raise NotImplementedError
+
+## 5.6.7
+
+- [#1662] Specify uri_redirect validation class explicitly.
+- [#1652] Add custom attributes support to token generator.
+- [#1667] Pass `client` instead of `grant.application` to `find_or_create_access_token`.
+- [#1673] Honor `custom_access_token_attributes` in client credentials grant flow.
+- [#1676] Improve AuthorizationsController error response handling
+- [#1677] Fix URIHelper.valid_for_authorization? breaking for non url URIs.
+
+## 5.6.6
+
+- [#1644] Update HTTP headers.
+- [#1646] Block public clients automatic authorization skip.
+- [#1648] Add custom token attributes to Refresh Token Request.
+- [#1649] Fixed custom_access_token_attributes related errors.
+
+# 5.6.5
+
+- [#1602] Allow custom data to be stored inside access grants/tokens.
+- [#1634] Code refactoring for custom token attributes.
+- [#1639] Add grant type validation to avoid Internal Server Error for DELETE /oauth/authorize endpoint.
+
+# 5.6.4
+
+- [#1633] Apply ORM configuration in #to_prepare block to avoid autoloading errors.
+
+# 5.6.3
+
+- [#1622] Drop support for Rubies 2.5 and 2.6
+- [#1605] Fix URI validation for Ruby 3.2+.
+- [#1625] Exclude endless access tokens from `StaleRecordsCleaner`.
+- [#1626] Remove deprecated `active_record_options` config option.
+- [#1631] Fix regression with redirect behavior after token lookup optimizations (redirect to app URI when found).
+- [#1630] Special case unique index creation for refresh_token on SQL Server.
+- [#1627] Lazy evaluate Doorkeeper config when loading files and executing initializers.
+
+## 5.6.2
+
+- [#1604] Fix fetching of the application when custom application_class defined.
+
+## 5.6.1
+
+- [#1593] Add support for Trilogy ActiveRecord adapter.
+- [#1597] Add optional support to use the url path for the native authorization code flow. Ports forward [#1143] from 4.4.3
+- [#1599] Remove unnecessarily re-fetch of application object when creating an access token.
+
+## 5.6.0
+
+- [#1581] Consider `token_type_hint` when searching for access token in TokensController to avoid extra database calls.
+
+## 5.6.0.rc2
+
+- [#1558] Fixed bug: able to obtain a token with default scopes even if they are not present in the
+  application scopes when using client credentials.
+- [#1567] Only filter `code` parameter if authorization_code grant flow is enabled.
+
+## 5.6.0.rc1
+
+- [#1551] Change lazy loading for ORM to be Ruby standard autoload.
+- [#1552] Remove duplicate IDs on Auth form to improve accessibility.
+- [#1542] Improve performance of `Doorkeeper::AccessToken#matching_token_for` using database specific SQL time math.
+
+  **[IMPORTANT]**: API of the `Doorkeeper::AccessToken#matching_token_for` method has changed and now it returns
+  only **active** access tokens (previously they were just not revoked). Please remember that the idea of the
+  `reuse_access_token` option is to check for existing _active_ token (see configuration option description).
+
+## 5.5.4
+
+- [#1535] Revert changes introduced in #1528 to allow query params in `redirect_uri` as per the spec.
+
+## 5.5.3
+
+- [#1528] Don't allow extra query params in redirect_uri.
+- [#1525] I18n source for forbidden token error is now `doorkeeper.errors.messages.forbidden_token.missing_scope`.
+- [#1531] Disable `strict-loading` for Doorkeeper models by default.
+- [#1532] Add support for Rails 7.
+
+## 5.5.2
+
+- [#1502] Drop support for Ruby 2.4 because of EOL.
+- [#1504] Updated the url fragment in the comment for code documentation.
+- [#1512] Fix form behavior when response mode is form_post.
+- [#1511] Fix that authorization code is returned by fragment if response_mode is fragment.
+
+## 5.5.1
+
+- [#1496] Revoke `old_refresh_token` if `previous_refresh_token` is present.
+- [#1495] Fix `respond_to` undefined in API-only mode
+- [#1488] Verify client authentication for Resource Owner Password Grant when
+  `config.skip_client_authentication_for_password_grant` is set and the client credentials
+  are sent in a HTTP Basic auth header.
+
+## 5.5.0
+
+- [#1482] Simplify `TokenInfoController` to be overridable (extract response rendering).
+- [#1478] Fix ownership association and Rake tasks when custom models configured.
+- [#1477] Respect `ActiveRecord::Base.pluralize_table_names` for Doorkeeper table names.
+
+## 5.5.0.rc2
+
+- [#1473] Enable `Applications` and `AuthorizedApplications` controllers in API mode.
+
+  **[IMPORTANT]** you can still skip these controllers using `skip_controllers` in
+    `use_doorkeeper` inside `routes.rb`. Please do it in case you don't need them.
+
+- [#1472] Fix `establish_connection` configuration for custom defined models.
+- [#1471] Add support for Ruby 3.0.
+- [#1469] Check if `redirect_uri` exists.
+- [#1465] Memoize nil doorkeeper_token.
+- [#1459] Use built-in Ruby option to remove padding in PKCE code challenge value.
+- [#1457] Make owner_id a bigint for newly-generated owner migrations
+- [#1452] Empty previous_refresh_token only if present.
+- [#1440] Validate empty host in redirect_uri.
+- [#1438] Add form post response mode.
+- [#1458] Make `config.skip_client_authentication_for_password_grant` a long term configuration option.
+
+## 5.5.0.rc1
+
+- [#1435] Make error response not redirectable when client is unauthorized
+- [#1426] Ensure ActiveRecord callbacks are executed on token revocation.
+- [#1407] Remove redundant and complex to support helpers froms tests (`should_have_json`, etc).
+- [#1416] Don't add introspection route if token introspection completely disabled.
+- [#1410] Properly memoize `current_resource_owner` value (consider `nil` and `false` values).
+- [#1415] Ignore PKCE params for non-PKCE grants.
+- [#1418] Add ability to register custom OAuth Grant Flows.
+- [#1420] Require client authentication for Resource Owner Password Grant as stated in OAuth RFC.
+
+  **[IMPORTANT]** you need to create a new OAuth client (`Doorkeeper::Application`) if you didn't
+    have it before and use client credentials in HTTP Basic auth if you previously used this grant
+    flow without client authentication. To opt out of this you could set the
+    `skip_client_authentication_for_password_grant` configuration option to `true`, but note that
+    this is in violation of the OAuth spec and represents a security risk.
+    All the users of your provider application now need to include client credentials when they use
+    this grant flow.
+
+- [#1421] Add Resource Owner instance to authorization hook context for `custom_access_token_expires_in`
+  configuration option to allow resource owner based Access Tokens TTL.
 
 ## 5.4.0
 
@@ -17,7 +159,7 @@ User-visible changes worth mentioning.
 
 - [#1371] Add `#as_json` method and attributes serialization restriction for Application model.
   Fixes information disclosure vulnerability (CVE-2020-10187).
-  
+
   **[IMPORTANT]** you need to re-implement `#as_json` method for Doorkeeper Application model
   if you previously used `#to_json` serialization with custom options or attributes or rely on
   JSON response from /oauth/applications.json or /oauth/authorized_applications.json. This change
@@ -31,17 +173,17 @@ User-visible changes worth mentioning.
 - [#1402] Handle trying authorization with client credentials.
 
 ## 5.4.0.rc1
-- [#1366] Sets expiry of token generated using `refresh_token` to that of original token. (Fixes #1364) 
+- [#1366] Sets expiry of token generated using `refresh_token` to that of original token. (Fixes #1364)
 - [#1354] Add `authorize_resource_owner_for_client` option to authorize the calling user to access an application.
 - [#1355] Allow to enable polymorphic Resource Owner association for Access Token & Grant
   models (`use_polymorphic_resource_owner` configuration option).
-  
+
   **[IMPORTANT]** Review your custom patches or extensions for Doorkeeper internals if you
   have such - since now Doorkeeper passes Resource Owner instance to every objects and not
   just it's ID. See PR description for details.
-  
+
 - [#1356] Remove duplicated scopes from Access Tokens and Grants on attribute assignment.
-- [#1357] Fix `Doorkeeper::OAuth::PreAuthorization#as_json` method causing 
+- [#1357] Fix `Doorkeeper::OAuth::PreAuthorization#as_json` method causing
   `Stack level too deep` error with AMS (fix #1312).
 - [#1358] Deprecate `active_record_options` configuration option.
 - [#1359] Refactor Doorkeeper configuration options DSL to make it easy to reuse it
@@ -53,7 +195,7 @@ User-visible changes worth mentioning.
   **[IMPORTANT]** now fully according to RFC 7009 nobody can do a revocation request without `client_id`
   (for public clients) and `client_secret` (for private clients). Please update your apps to include that
   info in the revocation request payload.
-  
+
 - [#1373] Make Doorkeeper routes mapper reusable in extensions.
 - [#1374] Revoke and issue client credentials token in a transaction with a row lock.
 - [#1384] Add context object with auth/pre_auth and issued_token for authorization hooks.
@@ -98,9 +240,9 @@ User-visible changes worth mentioning.
 
 - [#1371] Backport: add `#as_json` method and attributes serialization restriction for Application model.
   Fixes information disclosure vulnerability (CVE-2020-10187).
-  
+
 ## 5.2.4
-  
+
 - [#1360] Backport: Increase `matching_token_for` batch lookup size to 10 000 and make it configurable.
 
 ## 5.2.3
@@ -182,7 +324,7 @@ User-visible changes worth mentioning.
 - [#1237] Allow to set blank redirect URI if Doorkeeper configured to use redirect URI-less grant flows.
 - [#1234] Fix `StaleRecordsCleaner` to properly work with big amount of records.
 - [#1228] Allow to explicitly set non-expiring tokens in `custom_access_token_expires_in` configuration
-  option using `Float::INIFINITY` return value.
+  option using `Float::INFINITY` return value.
 - [#1224] Do not try to store token if not found by fallback hashing strategy.
 - [#1223] Update Hound/Rubocop rules, correct Doorkeeper codebase to follow style-guides.
 - [#1220] Drop Rails 4.2 & Ruby < 2.4 support.
@@ -267,7 +409,7 @@ User-visible changes worth mentioning.
 - [#1116] `AccessGrant`s will now be revoked along with `AccessToken`s when
   hitting the `AuthorizedApplicationController#destroy` route.
 - [#1114] Make token info endpoint's attributes consistent with token creation
-- [#1108] Simple formating of callback URLs when listing oauth applications
+- [#1108] Simple formatting of callback URLs when listing oauth applications
 - [#1106] Restrict access to AdminController with 'Forbidden 403' if admin_authenticator is not
   configured by developers.
 

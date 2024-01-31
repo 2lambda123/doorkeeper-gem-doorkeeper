@@ -4,9 +4,8 @@ require "spec_helper"
 require "bcrypt"
 
 RSpec.describe Doorkeeper::Application do
-  let(:require_owner) { Doorkeeper.config.instance_variable_set("@confirm_application_owner", true) }
-  let(:unset_require_owner) { Doorkeeper.config.instance_variable_set("@confirm_application_owner", false) }
   let(:new_application) { FactoryBot.build(:application) }
+  let(:owner) { FactoryBot.build_stubbed(:doorkeeper_testing_user) }
 
   let(:uid) { SecureRandom.hex(8) }
   let(:secret) { SecureRandom.hex(8) }
@@ -83,17 +82,32 @@ RSpec.describe Doorkeeper::Application do
     expect(new_application).not_to be_valid
   end
 
-  context "when application_owner is enabled" do
-    before do
-      Doorkeeper.configure do
-        orm DOORKEEPER_ORM
-        enable_application_owner
+  it "generates a secret using a custom object" do
+    module CustomGeneratorArgs
+      def self.generate
+        "custom_application_secret"
       end
     end
 
+    Doorkeeper.configure do
+      orm DOORKEEPER_ORM
+      application_secret_generator "CustomGeneratorArgs"
+    end
+
+    expect(new_application.secret).to be_nil
+    new_application.save
+    expect(new_application.secret).to eq("custom_application_secret")
+  end
+
+  context "when application_owner is enabled" do
     context "when application owner is not required" do
       before do
-        unset_require_owner
+        Doorkeeper.configure do
+          orm DOORKEEPER_ORM
+          enable_application_owner
+        end
+
+        Doorkeeper.run_orm_hooks
       end
 
       it "is valid given valid attributes" do
@@ -103,8 +117,12 @@ RSpec.describe Doorkeeper::Application do
 
     context "when application owner is required" do
       before do
-        require_owner
-        @owner = FactoryBot.build_stubbed(:doorkeeper_testing_user)
+        Doorkeeper.configure do
+          orm DOORKEEPER_ORM
+          enable_application_owner confirmation: true
+        end
+
+        Doorkeeper.run_orm_hooks
       end
 
       it "is invalid without an owner" do
@@ -112,7 +130,7 @@ RSpec.describe Doorkeeper::Application do
       end
 
       it "is valid with an owner" do
-        new_application.owner = @owner
+        new_application.owner = owner
         expect(new_application).to be_valid
       end
     end
@@ -407,18 +425,20 @@ RSpec.describe Doorkeeper::Application do
   end
 
   describe "#confidential?" do
-    subject { FactoryBot.create(:application, confidential: confidential).confidential? }
+    let(:app) do
+      FactoryBot.create(:application, confidential: confidential)
+    end
 
     context "when application is private/confidential" do
       let(:confidential) { true }
 
-      it { expect(subject).to eq(true) }
+      it { expect(app).to be_confidential }
     end
 
     context "when application is public/non-confidential" do
       let(:confidential) { false }
 
-      it { expect(subject).to eq(false) }
+      it { expect(app).not_to be_confidential }
     end
   end
 
@@ -470,7 +490,6 @@ RSpec.describe Doorkeeper::Application do
     end
 
     context "when called with authorized resource owner" do
-      let(:owner) { FactoryBot.create(:doorkeeper_testing_user) }
       let(:other_owner) { FactoryBot.create(:doorkeeper_testing_user) }
       let(:app) { FactoryBot.create(:application, secret: "123123123", owner: owner) }
 
@@ -479,6 +498,8 @@ RSpec.describe Doorkeeper::Application do
           orm DOORKEEPER_ORM
           enable_application_owner confirmation: false
         end
+
+        Doorkeeper.run_orm_hooks
       end
 
       it "includes all the attributes" do
@@ -495,5 +516,48 @@ RSpec.describe Doorkeeper::Application do
           .not_to include("redirect_uri")
       end
     end
+  end
+
+  context "when custom model class configured" do
+    class CustomApp < ::ActiveRecord::Base
+      include Doorkeeper::Orm::ActiveRecord::Mixins::Application
+    end
+
+    let(:new_application) { CustomApp.new(FactoryBot.attributes_for(:application)) }
+
+    context "without confirmation" do
+      before do
+        Doorkeeper.configure do
+          orm DOORKEEPER_ORM
+          application_class "CustomApp"
+          enable_application_owner confirmation: false
+        end
+
+        Doorkeeper.run_orm_hooks
+      end
+
+      it "is valid given valid attributes" do
+        expect(new_application).to be_valid
+      end
+    end
+
+    context "without confirmation" do
+      before do
+        Doorkeeper.configure do
+          orm DOORKEEPER_ORM
+          application_class "CustomApp"
+          enable_application_owner confirmation: true
+        end
+
+        Doorkeeper.run_orm_hooks
+      end
+
+      it "is invalid without owner" do
+        expect(new_application).not_to be_valid
+        new_application.owner = owner
+        expect(new_application).to be_valid
+      end
+    end
+
   end
 end

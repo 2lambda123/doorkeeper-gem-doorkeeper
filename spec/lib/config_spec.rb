@@ -13,7 +13,7 @@ RSpec.describe Doorkeeper::Config do
         resource_owner_authenticator(&block)
       end
 
-      expect(subject.authenticate_resource_owner).to eq(block)
+      expect(config.authenticate_resource_owner).to eq(block)
     end
 
     it "prints warning message by default" do
@@ -24,7 +24,7 @@ RSpec.describe Doorkeeper::Config do
       expect(Rails.logger).to receive(:warn).with(
         I18n.t("doorkeeper.errors.messages.resource_owner_authenticator_not_configured"),
       )
-      subject.authenticate_resource_owner.call(nil)
+      config.authenticate_resource_owner.call(nil)
     end
   end
 
@@ -36,7 +36,7 @@ RSpec.describe Doorkeeper::Config do
         resource_owner_from_credentials(&block)
       end
 
-      expect(subject.resource_owner_from_credentials).to eq(block)
+      expect(config.resource_owner_from_credentials).to eq(block)
     end
 
     it "prints warning message by default" do
@@ -47,14 +47,15 @@ RSpec.describe Doorkeeper::Config do
       expect(Rails.logger).to receive(:warn).with(
         I18n.t("doorkeeper.errors.messages.credential_flow_not_configured"),
       )
-      subject.resource_owner_from_credentials.call(nil)
+      config.resource_owner_from_credentials.call(nil)
     end
   end
 
-  describe "setup_orm_adapter" do
+  describe "setup_orm" do
     it "adds specific error message to NameError exception" do
       expect do
         Doorkeeper.configure { orm "hibernate" }
+        Doorkeeper.setup
       end.to raise_error(NameError, /ORM adapter not found \(hibernate\)/)
     end
 
@@ -63,6 +64,7 @@ RSpec.describe Doorkeeper::Config do
 
       expect do
         Doorkeeper.configure { orm "hibernate" }
+        Doorkeeper.setup
       end.to raise_error(NoMethodError)
     end
   end
@@ -76,7 +78,7 @@ RSpec.describe Doorkeeper::Config do
         orm DOORKEEPER_ORM
       end
 
-      expect(subject.authenticate_admin.call({})).to eq(default_behaviour)
+      expect(config.authenticate_admin.call({})).to eq(default_behaviour)
     end
 
     it "could be customized with a block" do
@@ -86,13 +88,13 @@ RSpec.describe Doorkeeper::Config do
         admin_authenticator(&block)
       end
 
-      expect(subject.authenticate_admin).to eq(block)
+      expect(config.authenticate_admin).to eq(block)
     end
   end
 
   describe "access_token_expires_in" do
     it "has 2 hours by default" do
-      expect(subject.access_token_expires_in).to eq(2.hours)
+      expect(config.access_token_expires_in).to eq(2.hours)
     end
 
     it "can change the value" do
@@ -100,7 +102,7 @@ RSpec.describe Doorkeeper::Config do
         orm DOORKEEPER_ORM
         access_token_expires_in 4.hours
       end
-      expect(subject.access_token_expires_in).to eq(4.hours)
+      expect(config.access_token_expires_in).to eq(4.hours)
     end
 
     it "can be set to nil" do
@@ -109,7 +111,7 @@ RSpec.describe Doorkeeper::Config do
         access_token_expires_in nil
       end
 
-      expect(subject.access_token_expires_in).to be_nil
+      expect(config.access_token_expires_in).to be_nil
     end
   end
 
@@ -120,7 +122,7 @@ RSpec.describe Doorkeeper::Config do
         default_scopes :public
       end
 
-      expect(subject.default_scopes).to include("public")
+      expect(config.default_scopes).to include("public")
     end
 
     it "has optional scopes" do
@@ -129,7 +131,7 @@ RSpec.describe Doorkeeper::Config do
         optional_scopes :write, :update
       end
 
-      expect(subject.optional_scopes).to include("write", "update")
+      expect(config.optional_scopes).to include("write", "update")
     end
 
     it "has all scopes" do
@@ -139,13 +141,13 @@ RSpec.describe Doorkeeper::Config do
         optional_scopes :admin
       end
 
-      expect(subject.scopes).to include("normal", "admin")
+      expect(config.scopes).to include("normal", "admin")
     end
   end
 
   describe "scopes_by_grant_type" do
     it "is {} by default" do
-      expect(subject.scopes_by_grant_type).to eq({})
+      expect(config.scopes_by_grant_type).to eq({})
     end
 
     it "has hash value" do
@@ -155,13 +157,13 @@ RSpec.describe Doorkeeper::Config do
         scopes_by_grant_type hash
       end
 
-      expect(subject.scopes_by_grant_type).to eq(hash)
+      expect(config.scopes_by_grant_type).to eq(hash)
     end
   end
 
   describe "use_refresh_token" do
     it "is false by default" do
-      expect(subject.refresh_token_enabled?).to eq(false)
+      expect(config.refresh_token_enabled?).to eq(false)
     end
 
     it "can change the value" do
@@ -170,7 +172,7 @@ RSpec.describe Doorkeeper::Config do
         use_refresh_token
       end
 
-      expect(subject.refresh_token_enabled?).to eq(true)
+      expect(config.refresh_token_enabled?).to eq(true)
     end
 
     it "can accept a boolean parameter" do
@@ -179,7 +181,7 @@ RSpec.describe Doorkeeper::Config do
         use_refresh_token false
       end
 
-      expect(subject.refresh_token_enabled?).to eq(false)
+      expect(config.refresh_token_enabled?).to eq(false)
     end
 
     it "can accept a block parameter" do
@@ -188,11 +190,11 @@ RSpec.describe Doorkeeper::Config do
         use_refresh_token { |_context| nil }
       end
 
-      expect(subject.refresh_token_enabled?).to be_a(Proc)
+      expect(config.refresh_token_enabled?).to be_a(Proc)
     end
 
-    it "does not includes 'refresh_token' in authorization_response_types" do
-      expect(subject.token_grant_types).not_to include "refresh_token"
+    it "does not includes 'refresh_token' in token_grant_flows" do
+      expect(config.token_grant_flows).not_to include Doorkeeper::GrantFlow.get("refresh_token")
     end
 
     context "when enabled" do
@@ -203,15 +205,15 @@ RSpec.describe Doorkeeper::Config do
         end
       end
 
-      it "includes 'refresh_token' in authorization_response_types" do
-        expect(subject.token_grant_types).to include "refresh_token"
+      it "includes 'refresh_token' in token_grant_flows" do
+        expect(config.token_grant_flows).to include Doorkeeper::GrantFlow.get("refresh_token")
       end
     end
   end
 
   describe "token_reuse_limit" do
     it "is 100 by default" do
-      expect(subject.token_reuse_limit).to eq(100)
+      expect(config.token_reuse_limit).to eq(100)
     end
 
     it "can change the value" do
@@ -220,7 +222,7 @@ RSpec.describe Doorkeeper::Config do
         token_reuse_limit 90
       end
 
-      expect(subject.token_reuse_limit).to eq(90)
+      expect(config.token_reuse_limit).to eq(90)
     end
 
     it "sets the value to 100 if invalid value is being set" do
@@ -232,13 +234,13 @@ RSpec.describe Doorkeeper::Config do
         token_reuse_limit 110
       end
 
-      expect(subject.token_reuse_limit).to eq(100)
+      expect(config.token_reuse_limit).to eq(100)
     end
   end
 
   describe "enforce_configured_scopes" do
     it "is false by default" do
-      expect(subject.enforce_configured_scopes?).to eq(false)
+      expect(config.enforce_configured_scopes?).to eq(false)
     end
 
     it "can change the value" do
@@ -247,13 +249,38 @@ RSpec.describe Doorkeeper::Config do
         enforce_configured_scopes
       end
 
-      expect(subject.enforce_configured_scopes?).to eq(true)
+      expect(config.enforce_configured_scopes?).to eq(true)
+    end
+  end
+
+  describe 'use_url_path_for_native_authorization' do
+    around(:each) do |example|
+      Doorkeeper.configure do
+        orm DOORKEEPER_ORM
+        use_url_path_for_native_authorization
+      end
+
+      Rails.application.reload_routes!
+
+      subject { Doorkeeper.configuration }
+
+      example.run
+
+      Doorkeeper.configure do
+        orm DOORKEEPER_ORM
+      end
+
+      Rails.application.reload_routes!
+    end
+
+    it 'sets the native authorization code route /:code' do
+      expect(subject.native_authorization_code_route).to eq('/:code')
     end
   end
 
   describe "client_credentials" do
     it "has defaults order" do
-      expect(subject.client_credentials_methods)
+      expect(config.client_credentials_methods)
         .to eq(%i[from_basic from_params])
     end
 
@@ -263,14 +290,14 @@ RSpec.describe Doorkeeper::Config do
         client_credentials :from_digest, :from_params
       end
 
-      expect(subject.client_credentials_methods)
+      expect(config.client_credentials_methods)
         .to eq(%i[from_digest from_params])
     end
   end
 
   describe "force_ssl_in_redirect_uri" do
     it "is true by default in non-development environments" do
-      expect(subject.force_ssl_in_redirect_uri).to eq(true)
+      expect(config.force_ssl_in_redirect_uri).to eq(true)
     end
 
     it "can change the value" do
@@ -279,7 +306,7 @@ RSpec.describe Doorkeeper::Config do
         force_ssl_in_redirect_uri(false)
       end
 
-      expect(subject.force_ssl_in_redirect_uri).to eq(false)
+      expect(config.force_ssl_in_redirect_uri).to eq(false)
     end
 
     it "can be a callable object" do
@@ -289,14 +316,14 @@ RSpec.describe Doorkeeper::Config do
         force_ssl_in_redirect_uri(&block)
       end
 
-      expect(subject.force_ssl_in_redirect_uri).to eq(block)
-      expect(subject.force_ssl_in_redirect_uri.call).to eq(false)
+      expect(config.force_ssl_in_redirect_uri).to eq(block)
+      expect(config.force_ssl_in_redirect_uri.call).to eq(false)
     end
   end
 
   describe "access_token_methods" do
     it "has defaults order" do
-      expect(subject.access_token_methods)
+      expect(config.access_token_methods)
         .to eq(%i[from_bearer_authorization from_access_token_param from_bearer_param])
     end
 
@@ -306,14 +333,14 @@ RSpec.describe Doorkeeper::Config do
         access_token_methods :from_access_token_param, :from_bearer_param
       end
 
-      expect(subject.access_token_methods)
+      expect(config.access_token_methods)
         .to eq(%i[from_access_token_param from_bearer_param])
     end
   end
 
   describe "forbid_redirect_uri" do
     it "is false by default" do
-      expect(subject.forbid_redirect_uri.call(URI.parse("https://localhost"))).to eq(false)
+      expect(config.forbid_redirect_uri.call(URI.parse("https://localhost"))).to eq(false)
     end
 
     it "can be a callable object" do
@@ -323,47 +350,70 @@ RSpec.describe Doorkeeper::Config do
         forbid_redirect_uri(&block)
       end
 
-      expect(subject.forbid_redirect_uri).to eq(block)
-      expect(subject.forbid_redirect_uri.call).to eq(true)
+      expect(config.forbid_redirect_uri).to eq(block)
+      expect(config.forbid_redirect_uri.call).to eq(true)
     end
   end
 
   describe "enable_application_owner" do
     it "is disabled by default" do
-      expect(Doorkeeper.config.enable_application_owner?).not_to eq(true)
+      expect(Doorkeeper.config.enable_application_owner?).not_to be(true)
     end
 
     context "when enabled without confirmation" do
+      class ApplicationWithOwner < ActiveRecord::Base
+        include Doorkeeper::Orm::ActiveRecord::Mixins::Application
+      end
+
       before do
         Doorkeeper.configure do
           orm DOORKEEPER_ORM
           enable_application_owner
+
+          application_class "ApplicationWithOwner"
         end
+
+        Doorkeeper.run_orm_hooks
       end
 
       it "adds support for application owner" do
-        expect(Doorkeeper::Application.new).to respond_to :owner
+        instance = ApplicationWithOwner.new(FactoryBot.attributes_for(:application))
+
+        expect(instance).to respond_to :owner
+        expect(instance).to be_valid
       end
 
       it "Doorkeeper.configuration.confirm_application_owner? returns false" do
-        expect(Doorkeeper.config.confirm_application_owner?).not_to eq(true)
+        expect(Doorkeeper.config.confirm_application_owner?).not_to be(true)
       end
     end
 
     context "when enabled with confirmation set to true" do
+      class ApplicationWithOwner < ActiveRecord::Base
+        include Doorkeeper::Orm::ActiveRecord::Mixins::Application
+      end
+
       before do
         Doorkeeper.configure do
           orm DOORKEEPER_ORM
           enable_application_owner confirmation: true
+
+          application_class "ApplicationWithOwner"
         end
+
+        Doorkeeper.run_orm_hooks
       end
 
       it "adds support for application owner" do
-        expect(Doorkeeper::Application.new).to respond_to :owner
+        instance = ApplicationWithOwner.new(FactoryBot.attributes_for(:application))
+
+        expect(instance).to respond_to :owner
+        expect(instance).not_to be_valid
+        expect(instance.errors[:owner]).to be_present
       end
 
       it "Doorkeeper.configuration.confirm_application_owner? returns true" do
-        expect(Doorkeeper.config.confirm_application_owner?).to eq(true)
+        expect(Doorkeeper.config.confirm_application_owner?).to be(true)
       end
     end
   end
@@ -379,7 +429,7 @@ RSpec.describe Doorkeeper::Config do
         realm "Example"
       end
 
-      expect(subject.realm).to eq("Example")
+      expect(config.realm).to eq("Example")
     end
   end
 
@@ -395,7 +445,7 @@ RSpec.describe Doorkeeper::Config do
         grant_flows %w[authorization_code implicit]
       end
 
-      expect(subject.grant_flows).to eq %w[authorization_code implicit]
+      expect(config.grant_flows).to eq %w[authorization_code implicit]
     end
 
     context "when including 'authorization_code'" do
@@ -406,12 +456,12 @@ RSpec.describe Doorkeeper::Config do
         end
       end
 
-      it "includes 'code' in authorization_response_types" do
-        expect(subject.authorization_response_types).to include "code"
+      it "includes 'authorization_code' in authorization_response_flows" do
+        expect(config.authorization_response_flows).to include Doorkeeper::GrantFlow.get("authorization_code")
       end
 
-      it "includes 'authorization_code' in token_grant_types" do
-        expect(subject.token_grant_types).to include "authorization_code"
+      it "includes 'authorization_code' in token_grant_flows" do
+        expect(config.token_grant_flows).to include Doorkeeper::GrantFlow.get("authorization_code")
       end
     end
 
@@ -423,8 +473,8 @@ RSpec.describe Doorkeeper::Config do
         end
       end
 
-      it "includes 'token' in authorization_response_types" do
-        expect(subject.authorization_response_types).to include "token"
+      it "includes 'implicit' in authorization_response_flows" do
+        expect(config.authorization_response_flows).to include Doorkeeper::GrantFlow.get("implicit")
       end
     end
 
@@ -436,8 +486,8 @@ RSpec.describe Doorkeeper::Config do
         end
       end
 
-      it "includes 'password' in token_grant_types" do
-        expect(subject.token_grant_types).to include "password"
+      it "includes 'password' in token_grant_flows" do
+        expect(config.token_grant_flows).to include Doorkeeper::GrantFlow.get("password")
       end
     end
 
@@ -449,24 +499,9 @@ RSpec.describe Doorkeeper::Config do
         end
       end
 
-      it "includes 'client_credentials' in token_grant_types" do
-        expect(subject.token_grant_types).to include "client_credentials"
+      it "includes 'client_credentials' in token_grant_flows" do
+        expect(config.token_grant_flows).to include Doorkeeper::GrantFlow.get("client_credentials")
       end
-    end
-  end
-
-  it "raises an exception when configuration is not set" do
-    old_config = Doorkeeper.config
-    Doorkeeper.module_eval do
-      @config = nil
-    end
-
-    expect do
-      Doorkeeper.config
-    end.to raise_error Doorkeeper::MissingConfiguration
-
-    Doorkeeper.module_eval do
-      @config = old_config
     end
   end
 
@@ -482,7 +517,37 @@ RSpec.describe Doorkeeper::Config do
         orm DOORKEEPER_ORM
         access_token_generator "Example"
       end
-      expect(subject.access_token_generator).to eq("Example")
+      expect(config.access_token_generator).to eq("Example")
+    end
+  end
+
+  describe "custom_access_token_attributes" do
+    it "is '[]' by default" do
+      expect(Doorkeeper.configuration.custom_access_token_attributes).to(eq([]))
+    end
+
+    it "can change the value" do
+      Doorkeeper.configure do
+        orm DOORKEEPER_ORM
+        custom_access_token_attributes [:tenant_name]
+      end
+      expect(config.custom_access_token_attributes).to eq([:tenant_name])
+    end
+  end
+
+  describe "application_secret_generator" do
+    it "is 'Doorkeeper::OAuth::Helpers::UniqueToken' by default" do
+      expect(Doorkeeper.configuration.application_secret_generator).to(
+        eq("Doorkeeper::OAuth::Helpers::UniqueToken"),
+      )
+    end
+
+    it "can change the value" do
+      Doorkeeper.configure do
+        orm DOORKEEPER_ORM
+        application_secret_generator "Example"
+      end
+      expect(config.application_secret_generator).to eq("Example")
     end
   end
 
@@ -498,7 +563,7 @@ RSpec.describe Doorkeeper::Config do
         default_generator_method :hex
       end
 
-      expect(subject.default_generator_method).to eq(:hex)
+      expect(config.default_generator_method).to eq(:hex)
     end
   end
 
@@ -552,37 +617,13 @@ RSpec.describe Doorkeeper::Config do
   end
 
   if DOORKEEPER_ORM == :active_record
-    class FakeCustomModel; end
-
-    describe "active_record_options" do
-      let(:models) { [Doorkeeper::AccessGrant, Doorkeeper::AccessToken, Doorkeeper::Application] }
-
-      before do
-        models.each do |model|
-          allow(model).to receive(:establish_connection).and_return(true)
-        end
-      end
-
-      it "establishes connection for Doorkeeper models based on options" do
-        expect(models).to all(receive(:establish_connection))
-
-        expect(Kernel).to receive(:warn).with(
-          /\[DOORKEEPER\] active_record_options has been deprecated and will soon be removed/,
-        )
-
-        Doorkeeper.configure do
-          orm DOORKEEPER_ORM
-          active_record_options(
-            establish_connection: Rails.configuration.database_configuration[Rails.env],
-          )
-        end
-      end
+    class FakeCustomModel < ::ActiveRecord::Base
     end
 
     describe "access_token_class" do
       it "uses default doorkeeper value" do
-        expect(subject.access_token_class).to eq("Doorkeeper::AccessToken")
-        expect(subject.access_token_model).to be(Doorkeeper::AccessToken)
+        expect(config.access_token_class).to eq("Doorkeeper::AccessToken")
+        expect(config.access_token_model).to be(Doorkeeper::AccessToken)
       end
 
       it "can change the value" do
@@ -591,15 +632,15 @@ RSpec.describe Doorkeeper::Config do
           access_token_class "FakeCustomModel"
         end
 
-        expect(subject.access_token_class).to eq("FakeCustomModel")
-        expect(subject.access_token_model).to be(FakeCustomModel)
+        expect(config.access_token_class).to eq("FakeCustomModel")
+        expect(config.access_token_model).to be(FakeCustomModel)
       end
     end
 
     describe "access_grant_class" do
       it "uses default doorkeeper value" do
-        expect(subject.access_grant_class).to eq("Doorkeeper::AccessGrant")
-        expect(subject.access_grant_model).to be(Doorkeeper::AccessGrant)
+        expect(config.access_grant_class).to eq("Doorkeeper::AccessGrant")
+        expect(config.access_grant_model).to be(Doorkeeper::AccessGrant)
       end
 
       it "can change the value" do
@@ -608,15 +649,15 @@ RSpec.describe Doorkeeper::Config do
           access_grant_class "FakeCustomModel"
         end
 
-        expect(subject.access_grant_class).to eq("FakeCustomModel")
-        expect(subject.access_grant_model).to be(FakeCustomModel)
+        expect(config.access_grant_class).to eq("FakeCustomModel")
+        expect(config.access_grant_model).to be(FakeCustomModel)
       end
     end
 
     describe "application_class" do
       it "uses default doorkeeper value" do
-        expect(subject.application_class).to eq("Doorkeeper::Application")
-        expect(subject.application_model).to be(Doorkeeper::Application)
+        expect(config.application_class).to eq("Doorkeeper::Application")
+        expect(config.application_model).to be(Doorkeeper::Application)
       end
 
       it "can change the value" do
@@ -625,15 +666,15 @@ RSpec.describe Doorkeeper::Config do
           application_class "FakeCustomModel"
         end
 
-        expect(subject.application_class).to eq("FakeCustomModel")
-        expect(subject.application_model).to be(FakeCustomModel)
+        expect(config.application_class).to eq("FakeCustomModel")
+        expect(config.application_model).to be(FakeCustomModel)
       end
     end
   end
 
   describe "api_only" do
     it "is false by default" do
-      expect(subject.api_only).to eq(false)
+      expect(config.api_only).to eq(false)
     end
 
     it "can change the value" do
@@ -642,13 +683,13 @@ RSpec.describe Doorkeeper::Config do
         api_only
       end
 
-      expect(subject.api_only).to eq(true)
+      expect(config.api_only).to eq(true)
     end
   end
 
   describe "token_lookup_batch_size" do
     it "uses default doorkeeper value" do
-      expect(subject.token_lookup_batch_size).to eq(10_000)
+      expect(config.token_lookup_batch_size).to eq(10_000)
     end
 
     it "can change the value" do
@@ -657,13 +698,13 @@ RSpec.describe Doorkeeper::Config do
         token_lookup_batch_size 100_000
       end
 
-      expect(subject.token_lookup_batch_size).to eq(100_000)
+      expect(config.token_lookup_batch_size).to eq(100_000)
     end
   end
 
   describe "strict_content_type" do
     it "is false by default" do
-      expect(subject.enforce_content_type).to eq(false)
+      expect(config.enforce_content_type).to eq(false)
     end
 
     it "can change the value" do
@@ -672,7 +713,7 @@ RSpec.describe Doorkeeper::Config do
         enforce_content_type
       end
 
-      expect(subject.enforce_content_type).to eq(true)
+      expect(config.enforce_content_type).to eq(true)
     end
   end
 
@@ -686,14 +727,14 @@ RSpec.describe Doorkeeper::Config do
         orm DOORKEEPER_ORM
         handle_auth_errors :raise
       end
-      expect(subject.handle_auth_errors).to eq(:raise)
+      expect(config.handle_auth_errors).to eq(:raise)
     end
   end
 
   describe "token_secret_strategy" do
     it "is plain by default" do
-      expect(subject.token_secret_strategy).to eq(Doorkeeper::SecretStoring::Plain)
-      expect(subject.token_secret_fallback_strategy).to eq(nil)
+      expect(config.token_secret_strategy).to eq(Doorkeeper::SecretStoring::Plain)
+      expect(config.token_secret_fallback_strategy).to eq(nil)
     end
 
     context "when provided" do
@@ -705,8 +746,8 @@ RSpec.describe Doorkeeper::Config do
       end
 
       it "will enable hashing for applications" do
-        expect(subject.token_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
-        expect(subject.token_secret_fallback_strategy).to eq(nil)
+        expect(config.token_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
+        expect(config.token_secret_fallback_strategy).to eq(nil)
       end
     end
 
@@ -744,8 +785,8 @@ RSpec.describe Doorkeeper::Config do
       end
 
       it "will enable hashing for applications" do
-        expect(subject.token_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
-        expect(subject.token_secret_fallback_strategy).to eq(Doorkeeper::SecretStoring::Plain)
+        expect(config.token_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
+        expect(config.token_secret_fallback_strategy).to eq(Doorkeeper::SecretStoring::Plain)
       end
     end
 
@@ -759,15 +800,15 @@ RSpec.describe Doorkeeper::Config do
           hash_token_secrets
         end
 
-        expect(subject.reuse_access_token).to eq(false)
+        expect(config.reuse_access_token).to eq(false)
       end
     end
   end
 
   describe "application_secret_strategy" do
     it "is plain by default" do
-      expect(subject.application_secret_strategy).to eq(Doorkeeper::SecretStoring::Plain)
-      expect(subject.application_secret_fallback_strategy).to eq(nil)
+      expect(config.application_secret_strategy).to eq(Doorkeeper::SecretStoring::Plain)
+      expect(config.application_secret_fallback_strategy).to eq(nil)
     end
 
     context "when provided" do
@@ -779,8 +820,8 @@ RSpec.describe Doorkeeper::Config do
       end
 
       it "will enable hashing for applications" do
-        expect(subject.application_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
-        expect(subject.application_secret_fallback_strategy).to eq(nil)
+        expect(config.application_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
+        expect(config.application_secret_fallback_strategy).to eq(nil)
       end
     end
 
@@ -804,8 +845,8 @@ RSpec.describe Doorkeeper::Config do
       end
 
       it "will enable hashing for applications" do
-        expect(subject.application_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
-        expect(subject.application_secret_fallback_strategy).to eq(Doorkeeper::SecretStoring::Plain)
+        expect(config.application_secret_strategy).to eq(Doorkeeper::SecretStoring::Sha256Hash)
+        expect(config.application_secret_fallback_strategy).to eq(Doorkeeper::SecretStoring::Plain)
       end
     end
   end
@@ -813,7 +854,7 @@ RSpec.describe Doorkeeper::Config do
   describe "options deprecation" do
     it "prints a warning message when an option is deprecated" do
       expect(Kernel).to receive(:warn).with(
-        "[DOORKEEPER] native_redirect_uri has been deprecated and will soon be removed",
+        /\[DOORKEEPER\] native_redirect_uri has been deprecated and will soon be removed/,
       )
       Doorkeeper.configure do
         orm DOORKEEPER_ORM

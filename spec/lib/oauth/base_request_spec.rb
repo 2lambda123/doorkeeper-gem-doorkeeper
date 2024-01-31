@@ -3,7 +3,7 @@
 require "spec_helper"
 
 RSpec.describe Doorkeeper::OAuth::BaseRequest do
-  subject do
+  subject(:request) do
     described_class.new
   end
 
@@ -14,11 +14,11 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
            expires_in_seconds: "300",
            scopes_string: "two scopes",
            plaintext_refresh_token: "some-refresh-token",
-           token_type: "bearer",
+           token_type: "Bearer",
            created_at: 0
   end
 
-  let(:client) { double :client, id: "1" }
+  let(:client) { Doorkeeper::Application.new(id: "1") }
 
   let(:scopes_array) { %w[public write] }
 
@@ -35,27 +35,27 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
 
   describe "#authorize" do
     before do
-      allow(subject).to receive(:access_token).and_return(access_token)
+      allow(request).to receive(:access_token).and_return(access_token)
     end
 
     it "validates itself" do
-      expect(subject).to receive(:validate).once
-      subject.authorize
+      expect(request).to receive(:validate).once
+      request.authorize
     end
 
     context "when valid" do
       before do
-        allow(subject).to receive(:valid?).and_return(true)
+        allow(request).to receive(:valid?).and_return(true)
       end
 
       it "calls callback methods" do
-        expect(subject).to receive(:before_successful_response).once
-        expect(subject).to receive(:after_successful_response).once
-        subject.authorize
+        expect(request).to receive(:before_successful_response).once
+        expect(request).to receive(:after_successful_response).once
+        request.authorize
       end
 
       it "returns a TokenResponse object" do
-        result = subject.authorize
+        result = request.authorize
 
         expect(result).to be_an_instance_of(Doorkeeper::OAuth::TokenResponse)
         expect(result.body).to eq(
@@ -67,13 +67,13 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
     context "when invalid" do
       context "with error other than invalid_request" do
         before do
-          allow(subject).to receive(:valid?).and_return(false)
-          allow(subject).to receive(:error).and_return(:server_error)
-          allow(subject).to receive(:state).and_return("hello")
+          allow(request).to receive(:valid?).and_return(false)
+          allow(request).to receive(:error).and_return(Doorkeeper::Errors::ServerError)
+          allow(request).to receive(:state).and_return("hello")
         end
 
         it "returns an ErrorResponse object" do
-          result = subject.authorize
+          result = request.authorize
 
           expect(result).to be_an_instance_of(Doorkeeper::OAuth::ErrorResponse)
 
@@ -87,13 +87,13 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
 
       context "with invalid_request error" do
         before do
-          allow(subject).to receive(:valid?).and_return(false)
-          allow(subject).to receive(:error).and_return(:invalid_request)
-          allow(subject).to receive(:state).and_return("hello")
+          allow(request).to receive(:valid?).and_return(false)
+          allow(request).to receive(:error).and_return(Doorkeeper::Errors::InvalidRequest)
+          allow(request).to receive(:state).and_return("hello")
         end
 
         it "returns an InvalidRequestResponse object" do
-          result = subject.authorize
+          result = request.authorize
 
           expect(result).to be_an_instance_of(Doorkeeper::OAuth::InvalidRequestResponse)
 
@@ -109,10 +109,10 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
 
   describe "#default_scopes" do
     it "delegates to the server" do
-      expect(subject).to receive(:server).and_return(server).once
+      expect(request).to receive(:server).and_return(server).once
       expect(server).to receive(:default_scopes).once
 
-      subject.default_scopes
+      request.default_scopes
     end
   end
 
@@ -120,10 +120,11 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
     let(:resource_owner) { FactoryBot.build_stubbed(:resource_owner) }
 
     it "returns an instance of AccessToken" do
-      result = subject.find_or_create_access_token(
+      result = request.find_or_create_access_token(
         client,
         resource_owner,
         "public",
+        {},
         server,
       )
 
@@ -140,10 +141,11 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
 
       allow(server).to receive(:option_defined?).with(:custom_access_token_expires_in).and_return(true)
 
-      result = subject.find_or_create_access_token(
+      result = request.find_or_create_access_token(
         client,
         resource_owner,
         "public",
+        {},
         server,
       )
       expect(result.expires_in).to be(500)
@@ -161,18 +163,20 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
 
       allow(server).to receive(:option_defined?).with(:custom_access_token_expires_in).and_return(true)
 
-      result = subject.find_or_create_access_token(
+      result = request.find_or_create_access_token(
         client,
         resource_owner,
         "public",
+        {},
         server,
       )
       expect(result.refresh_token).not_to be_nil
 
-      result = subject.find_or_create_access_token(
+      result = request.find_or_create_access_token(
         client,
         resource_owner,
         "private",
+        {},
         server,
       )
       expect(result.refresh_token).to be_nil
@@ -182,11 +186,11 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
   describe "#scopes" do
     context "when @original_scopes is present" do
       before do
-        subject.instance_variable_set(:@original_scopes, "public write")
+        request.instance_variable_set(:@original_scopes, "public write")
       end
 
       it "returns array of @original_scopes" do
-        result = subject.scopes
+        result = request.scopes
 
         expect(result).to eq(scopes_array)
       end
@@ -194,14 +198,14 @@ RSpec.describe Doorkeeper::OAuth::BaseRequest do
 
     context "when @original_scopes is blank" do
       before do
-        subject.instance_variable_set(:@original_scopes, "")
+        request.instance_variable_set(:@original_scopes, "")
       end
 
       it "calls #default_scopes" do
-        allow(subject).to receive(:server).and_return(server).once
+        allow(request).to receive(:server).and_return(server).once
         allow(server).to receive(:default_scopes).and_return(scopes_array).once
 
-        result = subject.scopes
+        result = request.scopes
 
         expect(result).to eq(scopes_array)
       end

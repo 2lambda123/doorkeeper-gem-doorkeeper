@@ -49,7 +49,7 @@ module Doorkeeper
       end
 
       # Implements PKCE code_challenge encoding without base64 padding as described in the spec.
-      # https://tools.ietf.org/html/rfc7636#appendix-A
+      # https://datatracker.ietf.org/doc/html/rfc7636#appendix-A
       #   Appendix A.  Notes on Implementing Base64url Encoding without Padding
       #
       #   This appendix describes how to implement a base64url-encoding
@@ -89,8 +89,7 @@ module Doorkeeper
       # suitable for PKCE validation
       #
       def generate_code_challenge(code_verifier)
-        padded_result = Base64.urlsafe_encode64(Digest::SHA256.digest(code_verifier))
-        padded_result.split("=")[0] # Remove any trailing '='
+        Base64.urlsafe_encode64(Digest::SHA256.digest(code_verifier), padding: false)
       end
 
       def pkce_supported?

@@ -13,6 +13,7 @@ module Doorkeeper
     include Models::SecretStorable
     include Models::Scopes
     include Models::ResourceOwnerable
+    include Models::ExpirationTimeSqlMath
 
     module ClassMethods
       # Returns an instance of the Doorkeeper::AccessToken with
@@ -86,16 +87,17 @@ module Doorkeeper
       # @return [Doorkeeper::AccessToken, nil] Access Token instance or
       #   nil if matching record was not found
       #
-      def matching_token_for(application, resource_owner, scopes)
+      def matching_token_for(application, resource_owner, scopes, include_expired: true)
         tokens = authorized_tokens_for(application&.id, resource_owner)
+        tokens = tokens.not_expired unless include_expired
         find_matching_token(tokens, application, scopes)
       end
 
       # Interface to enumerate access token records in batches in order not
       # to bloat the memory. Could be overloaded in any ORM extension.
       #
-      def find_access_token_in_batches(relation, *args, &block)
-        relation.find_in_batches(*args, &block)
+      def find_access_token_in_batches(relation, **args, &block)
+        relation.find_in_batches(**args, &block)
       end
 
       # Enumerates AccessToken records in batches to find a matching token.
@@ -104,9 +106,7 @@ module Doorkeeper
       #
       # ActiveRecord 5.x - 6.x ignores custom ordering so we can't perform a
       # database sort by created_at, so we need to load all the matching records,
-      # sort them and find latest one. Probably it would be better to rewrite this
-      # query using Time math if possible, but we n eed to consider ORM and
-      # different databases support.
+      # sort them and find latest one.
       #
       # @param relation [ActiveRecord::Relation]
       #   Access tokens relation
@@ -181,7 +181,7 @@ module Doorkeeper
       #
       def find_or_create_for(application:, resource_owner:, scopes:, **token_attributes)
         if Doorkeeper.config.reuse_access_token
-          access_token = matching_token_for(application, resource_owner, scopes)
+          access_token = matching_token_for(application, resource_owner, scopes, include_expired: false)
 
           return access_token if access_token&.reusable?
         end
@@ -213,7 +213,7 @@ module Doorkeeper
       # @return [Doorkeeper::AccessToken] new access token
       #
       def create_for(application:, resource_owner:, scopes:, **token_attributes)
-        token_attributes[:application_id] = application&.id
+        token_attributes[:application] = application
         token_attributes[:scopes] = scopes.to_s
 
         if Doorkeeper.config.polymorphic_resource_owner?
@@ -279,7 +279,7 @@ module Doorkeeper
     end
 
     # Access Token type: Bearer.
-    # @see https://tools.ietf.org/html/rfc6750
+    # @see https://datatracker.ietf.org/doc/html/rfc6750
     #   The OAuth 2.0 Authorization Framework: Bearer Token Usage
     #
     def token_type
@@ -374,10 +374,10 @@ module Doorkeeper
     # and clears `:previous_refresh_token` attribute.
     #
     def revoke_previous_refresh_token!
-      return unless self.class.refresh_token_revoked_on_use?
+      return if !self.class.refresh_token_revoked_on_use? || previous_refresh_token.blank?
 
       old_refresh_token&.revoke
-      update_column(:previous_refresh_token, "")
+      update_attribute(:previous_refresh_token, "")
     end
 
     private
@@ -434,6 +434,10 @@ module Doorkeeper
       }.tap do |attributes|
         if Doorkeeper.config.polymorphic_resource_owner?
           attributes[:resource_owner] = resource_owner
+        end
+
+        Doorkeeper.config.custom_access_token_attributes.each do |attribute_name|
+          attributes[attribute_name] = public_send(attribute_name)
         end
       end
     end

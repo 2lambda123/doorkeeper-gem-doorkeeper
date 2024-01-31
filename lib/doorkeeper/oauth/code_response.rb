@@ -21,23 +21,29 @@ module Doorkeeper
         auth.token
       end
 
-      def redirect_uri
-        if URIChecker.oob_uri?(pre_auth.redirect_uri)
-          auth.oob_redirect
-        elsif response_on_fragment
-          Authorization::URIBuilder.uri_with_fragment(
-            pre_auth.redirect_uri,
+      def body
+        if auth.try(:access_token?)
+          {
             access_token: auth.token.plaintext_token,
             token_type: auth.token.token_type,
             expires_in: auth.token.expires_in_seconds,
             state: pre_auth.state,
-          )
-        else
-          Authorization::URIBuilder.uri_with_query(
-            pre_auth.redirect_uri,
+          }
+        elsif auth.try(:access_grant?)
+          {
             code: auth.token.plaintext_token,
             state: pre_auth.state,
-          )
+          }
+        end
+      end
+
+      def redirect_uri
+        if URIChecker.oob_uri?(pre_auth.redirect_uri)
+          auth.oob_redirect
+        elsif response_on_fragment
+          Authorization::URIBuilder.uri_with_fragment(pre_auth.redirect_uri, body)
+        else
+          Authorization::URIBuilder.uri_with_query(pre_auth.redirect_uri, body)
         end
       end
     end

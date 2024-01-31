@@ -3,6 +3,7 @@
 
 require "bundler/setup"
 require "rails/all"
+require "active_support/all"
 require "doorkeeper"
 
 # You can add fixtures and/or initialization code here to make experimenting
@@ -13,6 +14,9 @@ require "doorkeeper"
 # Pry.start
 
 Rails.logger = Logger.new(STDOUT)
+
+Rails.logger.info("Doorkeeper version: #{Doorkeeper::VERSION::STRING}")
+Rails.logger.info("Rails version: #{Rails::VERSION::STRING}")
 
 # Default Doorkeeper config
 Doorkeeper.configure do
