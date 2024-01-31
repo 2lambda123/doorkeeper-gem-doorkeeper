@@ -14,6 +14,14 @@ Run the tests with: `docker run -it --rm doorkeeper:test`
 
 ### Local Setup
 
+### Troubleshooting GitHub Actions Workflow
+When encountering a failed run in GitHub Actions, follow these steps to troubleshoot and resolve the issue:
+1. Analyze the error logs to identify the root cause of the failure.
+2. Check for any recent changes that may have caused the failure.
+3. Review the GitHub Actions workflow file for any misconfigurations or errors.
+4. Make the necessary code changes and push them to the repository.
+5. Monitor the subsequent GitHub Actions runs to ensure the issue has been resolved.
+
 * Set up Ruby dependencies via Bundler
 
       bundle install
@@ -46,5 +54,6 @@ Run the tests with: `docker run -it --rm doorkeeper:test`
 * We may suggest changes.
 * Please, squash your commits to a single one if you introduced a new changes or pushed more than
 one commit. Let's keep the history clean.
+* Troubleshooting GitHub Actions Workflow: If the GitHub Actions run failed, follow the steps outlined in the [Contributing section](#B) to troubleshoot and resolve the issue. If necessary, reach out to the maintainers for assistance.
 
 Thank you for your contribution! :handshake:
