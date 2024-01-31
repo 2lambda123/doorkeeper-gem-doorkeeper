@@ -18,7 +18,7 @@ jobs:
         See https://github.com/doorkeeper-gem/doorkeeper/commit/${{ github.sha }} for the details.
       ISSUE_LABELS: ORM
     steps:
-    - name: List & cache git modified files
+            - name: List & cache git modified files
       id: changed_files
       uses: lots0logs/gh-action-get-changed-files@2.2.2
       with:
@@ -50,7 +50,7 @@ jobs:
     - name: Create an issue for Sequel extension
       id: create_sequel_issue
       if: env.ORM_CHANGES == 'yes'
-      uses: dacbd/create-issue-action@main
+      uses: dacbd/create-issue-action@v1
       with:
         token: ${{ github.token }}
         title: ${{ env.ISSUE_TITLE }}
