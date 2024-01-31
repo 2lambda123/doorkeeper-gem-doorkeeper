@@ -56,7 +56,7 @@ jobs:
         with:
           ruby-version: 3.2
           bundler-cache: true
-      - run: bundle exec rake spec || echo "Rails edge test is done."
+      - run: bundle exec rspec || echo "Rails edge test is done."
 
   ruby_edge:
     strategy:
@@ -71,7 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@v2
         with:
           ruby-version: 'ruby-head'
           bundler-cache: true
